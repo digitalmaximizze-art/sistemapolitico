@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Polly Flow — Inteligência Política</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body { background: #060c18; font-family: 'Sora', sans-serif; }
+    select option { background: #0d1525; color: #e2e8f0; }
+    ::-webkit-scrollbar { width: 3px; height: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.25); border-radius: 99px; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse  { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+    @keyframes spin   { to { transform:rotate(360deg); } }
+    @keyframes urgencyPulse { 0%,100% { box-shadow:0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow:0 0 16px 2px rgba(239,68,68,0.08); } }
+    @keyframes sweep  { from { transform:translateX(-100%); } to { transform:translateX(300%); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useRef, useEffect } = React;
+
+    // ── Lucide icons inlined as SVG components ──────────────────────────────────
+    const Icon = ({ d, size=16, color="currentColor", strokeWidth=2, style={} }) => (
+      React.createElement('svg', { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke:color, strokeWidth, strokeLinecap:"round", strokeLinejoin:"round", style:{display:"inline-block",flexShrink:0,...style} },
+        ...(Array.isArray(d) ? d.map((p,i)=>React.createElement('path',{key:i,d:p})) : [React.createElement('path',{d})])
+      )
+    );
+    const icons = {
+      LayoutDashboard: ({size,color})=>React.createElement(Icon,{size,color,d:["M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z","M9 22V12h6v10"]}),
+      Map:             ({size,color})=>React.createElement(Icon,{size,color,d:"M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3V7z M9 4v13 M15 7v13"}),
+      Users:           ({size,color})=>React.createElement(Icon,{size,color,d:["M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2","M23 21v-2a4 4 0 0 0-3-3.87","M16 3.13a4 4 0 0 1 0 7.75","M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"]}),
+      Wrench:          ({size,color})=>React.createElement(Icon,{size,color,d:"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"}),
+      Bell:            ({size,color})=>React.createElement(Icon,{size,color,d:["M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9","M13.73 21a2 2 0 0 1-3.46 0"]}),
+      Trophy:          ({size,color})=>React.createElement(Icon,{size,color,d:["M6 9H4.5a2.5 2.5 0 0 1 0-5H6","M18 9h1.5a2.5 2.5 0 0 0 0-5H18","M4 22h16","M10 14.66V17a1 1 0 0 1-1 1h-1a2 2 0 0 0 0 4h4a2 2 0 0 0 0-4h-1a1 1 0 0 1-1-1v-2.34","M18 2H6v7a6 6 0 0 0 12 0V2z"]}),
+      MapPin:          ({size,color})=>React.createElement(Icon,{size,color,d:["M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z","M12 7m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"]}),
+      Phone:           ({size,color})=>React.createElement(Icon,{size,color,d:"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.5 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"}),
+      Plus:            ({size,color})=>React.createElement(Icon,{size,color,d:"M12 5v14M5 12h14"}),
+      Camera:          ({size,color})=>React.createElement(Icon,{size,color,d:["M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z","M12 13m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"]}),
+      AlertCircle:     ({size,color})=>React.createElement(Icon,{size,color,d:["M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z","M12 8v4","M12 16h.01"]}),
+      Zap:             ({size,color})=>React.createElement(Icon,{size,color,d:"M13 2L3 14h9l-1 8 10-12h-9l1-8z"}),
+      Shield:          ({size,color})=>React.createElement(Icon,{size,color,d:"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"}),
+      MessageSquare:   ({size,color})=>React.createElement(Icon,{size,color,d:"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"}),
+      Vote:            ({size,color})=>React.createElement(Icon,{size,color,d:["M3 11l19-9-9 19-2-8-8-2z"]}),
+      Building2:       ({size,color})=>React.createElement(Icon,{size,color,d:["M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18","M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2","M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2","M10 6h4","M10 10h4","M10 14h4","M10 18h4"]}),
+      Search:          ({size,color})=>React.createElement(Icon,{size,color,d:["M11 19A8 8 0 1 0 11 3a8 8 0 0 0 0 16z","M21 21l-4.35-4.35"]}),
+      ArrowUp:         ({size,color})=>React.createElement(Icon,{size,color,d:"M12 19V5M5 12l7-7 7 7"}),
+      ArrowDown:       ({size,color})=>React.createElement(Icon,{size,color,d:"M12 5v14M19 12l-7 7-7-7"}),
+      Edit:            ({size,color})=>React.createElement(Icon,{size,color,d:["M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7","M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"]}),
+      X:               ({size,color})=>React.createElement(Icon,{size,color,d:"M18 6L6 18M6 6l12 12"}),
+      Activity:        ({size,color})=>React.createElement(Icon,{size,color,d:"M22 12h-4l-3 9L9 3l-3 9H2"}),
+      Gift:            ({size,color})=>React.createElement(Icon,{size,color,d:["M20 12v10H4V12","M2 7h20v5H2z","M12 22V7","M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z","M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"]}),
+      FileText:        ({size,color})=>React.createElement(Icon,{size,color,d:["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z","M14 2v6h6","M16 13H8","M16 17H8","M10 9H8"]}),
+      UserCheck:       ({size,color})=>React.createElement(Icon,{size,color,d:["M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2","M8.5 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8","M17 11l2 2 4-4"]}),
+      Radio:           ({size,color})=>React.createElement(Icon,{size,color,d:["M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z","M19 10v2a7 7 0 0 1-14 0v-2","M12 19v4","M8 23h8"]}),
+      Newspaper:       ({size,color})=>React.createElement(Icon,{size,color,d:["M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2","M18 14h-8","M15 18h-5","M10 6h8v4h-8V6z"]}),
+      ImageIcon:       ({size,color})=>React.createElement(Icon,{size,color,d:["M21 19H3a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2z","M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z","M21 15l-5-5L5 19"]}),
+      Download:        ({size,color})=>React.createElement(Icon,{size,color,d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"}),
+      CheckCheck:      ({size,color})=>React.createElement(Icon,{size,color,d:"M18 6 7 17l-5-5M22 10l-11.5 11L8 18.5"}),
+      Megaphone:       ({size,color})=>React.createElement(Icon,{size,color,d:["M3 11l19-9-9 19-2-8-8-2z"]}),
+      Pin:             ({size,color})=>React.createElement(Icon,{size,color,d:"M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z M12 10m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}),
+      Paperclip:       ({size,color})=>React.createElement(Icon,{size,color,d:"M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"}),
+      Send:            ({size,color})=>React.createElement(Icon,{size,color,d:"M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"}),
+      Eye:             ({size,color})=>React.createElement(Icon,{size,color,d:["M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z","M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"]}),
+      ChevronDown:     ({size,color})=>React.createElement(Icon,{size,color,d:"M6 9l6 6 6-6"}),
+      ChevronUp:       ({size,color})=>React.createElement(Icon,{size,color,d:"M18 15l-6-6-6 6"}),
+      Briefcase:       ({size,color})=>React.createElement(Icon,{size,color,d:["M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z","M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"]}),
+      User:            ({size,color})=>React.createElement(Icon,{size,color,d:["M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2","M12 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8"]}),
+      Check:           ({size,color})=>React.createElement(Icon,{size,color,d:"M20 6L9 17l-5-5"}),
+      TrendingUp:      ({size,color})=>React.createElement(Icon,{size,color,d:"M23 6l-9.5 9.5-5-5L1 18 M17 6h6v6"}),
+    };
+
+    // Destructure icon components to match JSX usage
+    const { LayoutDashboard, Map, Users, Wrench, Bell, Trophy, MapPin, Phone,
+      Plus, Camera, AlertCircle, Zap, Shield, MessageSquare, Vote,
+      Building2, Search, ArrowUp, ArrowDown, Edit, X, Activity, Gift,
+      FileText, UserCheck, Radio, Newspaper, ImageIcon, Download,
+      CheckCheck, Megaphone, Pin, Paperclip, Send, Eye, ChevronDown,
+      ChevronUp, Briefcase, User, Check, TrendingUp } = icons;
+
+
+// ─── ROLE DEFINITIONS ─────────────────────────────────────────────────────────
+const LEADER_ROLES = [
+  { id: "coordenador_geral",  label: "Coordenador Geral",     level: 1, color: "#2563eb" },
+  { id: "lider_polo",         label: "Líder de Pólo",         level: 2, color: "#0891b2" },
+  { id: "captador",           label: "Captador de Votos",     level: 3, color: "#7c3aed" },
+  { id: "agente_zeladoria",   label: "Agente de Zeladoria",   level: 3, color: "#059669" },
+  { id: "agente_comunicacao", label: "Agente de Comunicação", level: 3, color: "#d97706" },
+  { id: "militante_base",     label: "Militante de Base",     level: 4, color: "#64748b" },
+];
+
+// ─── MOCK DATA ────────────────────────────────────────────────────────────────
+const POLES = [
+  { id: 1, name: "Zona Norte",       leader: "Ricardo Mendes",  militants: 342, target: 500, budget: 8500, spent: 6200, color: "#2563eb", lat: -22.895, lng: -43.275 },
+  { id: 2, name: "Centro Histórico", leader: "Patrícia Souza",  militants: 218, target: 300, budget: 5000, spent: 3800, color: "#0891b2", lat: -22.902, lng: -43.172 },
+  { id: 3, name: "Zona Sul",         leader: "Marcos Teixeira", militants: 189, target: 400, budget: 7000, spent: 4100, color: "#7c3aed", lat: -22.971, lng: -43.182 },
+  { id: 4, name: "Leste Industrial", leader: "Juliana Ferraz",  militants: 95,  target: 200, budget: 3500, spent: 1900, color: "#059669", lat: -22.842, lng: -43.295 },
+];
+
+const INITIAL_MILITANTS = [
+  { id: 1, name: "Ana Beatriz Santos",  role: "captador",          pole: "Zona Norte",       neighborhood: "Vila Isabel",  phone: "(21) 99812-3456", birthday: "1988-04-15", votes: 23, status: "ativo",  lat: -22.9068, lng: -43.2441, photo: null, bio: "Atuante no bairro há 6 anos. Referência na comunidade local." },
+  { id: 2, name: "Carlos Eduardo Lima", role: "coordenador_geral",  pole: "Centro Histórico", neighborhood: "Centro",       phone: "(21) 97654-8901", birthday: "1975-07-22", votes: 45, status: "ativo",  lat: -22.9035, lng: -43.1731, photo: null, bio: "Coordena todas as frentes de mobilização do gabinete." },
+  { id: 3, name: "Fernanda Oliveira",   role: "agente_comunicacao", pole: "Zona Sul",         neighborhood: "Copacabana",   phone: "(21) 98765-4321", birthday: "1992-04-03", votes: 12, status: "ativo",  lat: -22.9711, lng: -43.1823, photo: null, bio: "Responsável pelas redes sociais e comunicação externa." },
+  { id: 4, name: "Gabriel Rocha",       role: "lider_polo",         pole: "Zona Norte",       neighborhood: "Tijuca",       phone: "(21) 96543-2109", birthday: "1985-11-08", votes: 67, status: "inativo", lat: -22.9231, lng: -43.2349, photo: null, bio: "" },
+  { id: 5, name: "Helena Carvalho",     role: "agente_zeladoria",   pole: "Leste Industrial", neighborhood: "Penha",        phone: "(21) 94321-0987", birthday: "1990-04-03", votes: 34, status: "ativo",  lat: -22.8397, lng: -43.2953, photo: null, bio: "Coordena registros de zeladoria no setor leste." },
+  { id: 6, name: "Igor Nascimento",     role: "lider_polo",         pole: "Centro Histórico", neighborhood: "Santa Teresa", phone: "(21) 93210-8765", birthday: "1978-02-14", votes: 89, status: "ativo",  lat: -22.9167, lng: -43.1789, photo: null, bio: "Liderança histórica no Centro. 12 anos de militância ativa." },
+  { id: 7, name: "Juliana Mota",        role: "captador",           pole: "Zona Sul",         neighborhood: "Botafogo",     phone: "(21) 92109-7654", birthday: "1993-06-10", votes: 31, status: "ativo",  lat: -22.9502, lng: -43.1863, photo: null, bio: "" },
+  { id: 8, name: "Leonardo Faria",      role: "militante_base",     pole: "Zona Norte",       neighborhood: "Méier",        phone: "(21) 91098-6543", birthday: "1980-09-25", votes: 58, status: "ativo",  lat: -22.8983, lng: -43.2753, photo: null, bio: "" },
+];
+
+const DEMANDS = [
+  { id: 1, type: "Buraco na Via",      address: "R. Conde de Bonfim, 245 — Tijuca", status: "pendente",     date: "2024-03-28", reportedBy: "Ricardo Mendes",  priority: "alta",  lat: -22.9231, lng: -43.2349 },
+  { id: 2, type: "Iluminação Pública", address: "Av. Brasil, 1200 — Penha",         status: "em_andamento", date: "2024-03-25", reportedBy: "Juliana Ferraz",  priority: "media", lat: -22.8397, lng: -43.2953 },
+  { id: 3, type: "Limpeza Urbana",     address: "Pça. Saens Peña — Tijuca",         status: "resolvido",    date: "2024-03-20", reportedBy: "Ricardo Mendes",  priority: "baixa", lat: -22.9121, lng: -43.2508 },
+  { id: 4, type: "Semáforo Quebrado",  address: "R. do Catete, 300 — Catete",       status: "pendente",     date: "2024-04-01", reportedBy: "Patrícia Souza",  priority: "alta",  lat: -22.9265, lng: -43.1766 },
+  { id: 5, type: "Calçada Irregular",  address: "R. Uruguai, 78 — Andaraí",         status: "em_andamento", date: "2024-03-30", reportedBy: "Marcos Teixeira", priority: "media", lat: -22.9180, lng: -43.2412 },
+];
+
+const RANKING = [
+  { pos: 1, name: "Igor Nascimento",     pole: "Centro Histórico",  role: "lider_polo",         militants: 89, demands: 23, score: 2340, trend: "up"   },
+  { pos: 2, name: "Carlos Eduardo Lima", pole: "Centro Histórico",  role: "coordenador_geral",  militants: 45, demands: 31, score: 1987, trend: "up"   },
+  { pos: 3, name: "Gabriel Rocha",       pole: "Zona Norte",        role: "lider_polo",         militants: 67, demands: 12, score: 1654, trend: "down" },
+  { pos: 4, name: "Helena Carvalho",     pole: "Leste Industrial",  role: "agente_zeladoria",   militants: 34, demands: 18, score: 1423, trend: "up"   },
+  { pos: 5, name: "Ana Beatriz Santos",  pole: "Zona Norte",        role: "captador",           militants: 23, demands: 8,  score: 987,  trend: "down" },
+];
+
+const BIRTHDAYS_TODAY = [
+  { name: "Fernanda Oliveira", phone: "(21) 98765-4321" },
+  { name: "Helena Carvalho",   phone: "(21) 94321-0987" },
+];
+
+const INITIAL_POSTS = [
+  { id: 1, urgent: true,  pinned: true,  type: "comunicado", title: "Reunião Obrigatória — Todos os Líderes",       body: "Convocamos todos os líderes de pólo para reunião na sede nesta quinta-feira às 19h. Pauta: estratégia eleitoral Q2. Confirmem presença pelo WhatsApp do gabinete.", author: "Dep. Carlos Vasconcelos", date: "2024-04-03T14:30:00", attachments: [], images: [], readBy: [] },
+  { id: 2, urgent: false, pinned: false, type: "acao",        title: "Entrega de Cestas Básicas — Méier",            body: "Realizamos com sucesso a entrega de 120 cestas básicas no Méier neste sábado. Agradecemos a toda equipe pela mobilização. Material disponível para compartilhamento.", author: "Dep. Carlos Vasconcelos", date: "2024-04-01T10:00:00", attachments: [], images: ["linear-gradient(135deg,#1e3a5f,#2563eb)"], readBy: ["Ricardo Mendes","Patrícia Souza"] },
+  { id: 3, urgent: false, pinned: false, type: "documento",   title: "Calendário de Eventos — Abril 2024",           body: "Calendário completo de ações de campo para abril. Organizem as equipes regionais conforme as datas estabelecidas.", author: "Gabinete — Patrícia Souza", date: "2024-03-30T09:00:00", attachments: [{ name: "Calendario_Abril_2024.pdf", size: "245 KB", type: "pdf" }], images: [], readBy: ["Ricardo Mendes"] },
+  { id: 4, urgent: false, pinned: false, type: "foto",        title: "Visita à UPA de Bangu — Registro Fotográfico", body: "Registros da visita à UPA de Bangu. Utilize as imagens para divulgação nos grupos do seu pólo.", author: "Assessoria de Comunicação", date: "2024-03-28T16:00:00", attachments: [], images: ["linear-gradient(135deg,#1a2a1a,#059669)","linear-gradient(135deg,#2d1b4e,#7c3aed)"], readBy: ["Ricardo Mendes","Marcos Teixeira"] },
+  { id: 5, urgent: false, pinned: false, type: "comunicado",  title: "Nova Meta de Cadastros — Maio 2024",           body: "A meta de cadastros foi aumentada para 1.800 eleitores até 31/05. Cada pólo receberá cota proporcional. Detalhes na próxima reunião.", author: "Dep. Carlos Vasconcelos", date: "2024-03-25T11:00:00", attachments: [{ name: "Planilha_Metas_Q2.xlsx", size: "88 KB", type: "xlsx" }], images: [], readBy: ["Patrícia Souza","Juliana Ferraz"] },
+];
+
+// ─── STYLE CONSTANTS ──────────────────────────────────────────────────────────
+const labelStyle = { fontSize: 10, color: "#475569", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 };
+const inputStyle = { width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 9, padding: "9px 12px", color: "#e2e8f0", fontSize: 13, outline: "none", fontFamily: "'Sora',sans-serif", boxSizing: "border-box" };
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function getRoleConfig(roleId) { return LEADER_ROLES.find(r => r.id === roleId) || LEADER_ROLES[LEADER_ROLES.length - 1]; }
+
+function Avatar({ person, size = 40, showRole = false }) {
+  const role = getRoleConfig(person.role);
+  const initials = person.name.split(" ").slice(0, 2).map(n => n[0]).join("");
+  return (
+    <div style={{ position: "relative", flexShrink: 0 }}>
+      <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: person.photo ? "transparent" : `${role.color}18`, border: `1.5px solid ${role.color}35`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        {person.photo
+          ? <img src={person.photo} alt={person.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : <span style={{ fontSize: size * 0.34, fontWeight: 700, color: role.color }}>{initials}</span>}
+      </div>
+      {showRole && <div style={{ position: "absolute", bottom: -3, right: -3, width: 12, height: 12, borderRadius: "50%", background: role.color, border: "1.5px solid #080e1c", boxShadow: `0 0 6px ${role.color}66` }} />}
+    </div>
+  );
+}
+
+function RoleBadge({ roleId, small = false }) {
+  const r = getRoleConfig(roleId);
+  return (
+    <span style={{ background: `${r.color}14`, color: r.color, border: `1px solid ${r.color}28`, borderRadius: 5, padding: small ? "1px 7px" : "3px 9px", fontSize: small ? 9 : 11, fontWeight: 700, letterSpacing: "0.02em", display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <Briefcase size={small ? 8 : 9} /> {r.label}
+    </span>
+  );
+}
+
+// ─── MAP ──────────────────────────────────────────────────────────────────────
+// Fully self-contained SVG map — no external resources needed
+function RioMap({ showMilitants = true, showDemands = true, showPoles = true, height = 420, militants }) {
+  const [selected, setSelected] = useState(null);
+
+  // Bounding box: lat -23.08→-22.74, lng -43.80→-43.10
+  const LAT_MIN = -23.08, LAT_MAX = -22.74;
+  const LNG_MIN = -43.80, LNG_MAX = -43.10;
+  const W = 900, H = 560;
+  const proj = (lat, lng) => ({
+    x: ((lng - LNG_MIN) / (LNG_MAX - LNG_MIN)) * W,
+    y: ((LAT_MAX - lat) / (LAT_MAX - LAT_MIN)) * H,
+  });
+
+  const polePts   = POLES.map(p => ({ ...p, ...proj(p.lat, p.lng) }));
+  const milPts    = militants.map(m => { const p = POLES.find(x => x.name === m.pole); return { ...m, ...proj(m.lat, m.lng), color: p?.color || "#2563eb" }; });
+  const demandPts = DEMANDS.map(d => ({ ...d, ...proj(d.lat, d.lng), sc: { pendente: "#f59e0b", em_andamento: "#2563eb", resolvido: "#22c55e" }[d.status] || "#94a3b8" }));
+
+  // Simplified Rio de Janeiro street grid / neighborhood shapes (SVG paths, projected)
+  // These are approximate outlines giving a real cartographic feel
+  const neighborhoods = [
+    { name: "Centro",        d: "M460,255 L490,240 L510,250 L505,275 L475,280 Z",                    fill: "#1a2a3a" },
+    { name: "Tijuca",        d: "M370,200 L430,185 L450,210 L440,240 L400,245 L375,225 Z",           fill: "#162030" },
+    { name: "Vila Isabel",   d: "M340,230 L375,220 L380,248 L350,255 Z",                             fill: "#172232" },
+    { name: "Méier",         d: "M295,195 L345,185 L355,215 L330,230 L300,220 Z",                    fill: "#141e2e" },
+    { name: "Penha",         d: "M185,185 L240,175 L255,205 L240,225 L195,215 Z",                    fill: "#121c2c" },
+    { name: "Ramos",         d: "M240,230 L280,220 L290,245 L260,255 L235,248 Z",                    fill: "#131d2d" },
+    { name: "Santa Teresa",  d: "M475,280 L510,270 L520,295 L490,305 L470,295 Z",                    fill: "#1a2a3a" },
+    { name: "Botafogo",      d: "M480,335 L510,325 L525,350 L510,370 L482,362 Z",                    fill: "#162030" },
+    { name: "Copacabana",    d: "M490,375 L520,360 L540,385 L525,405 L495,400 Z",                    fill: "#141e2e" },
+    { name: "Ipanema",       d: "M520,390 L555,375 L568,398 L550,415 L522,410 Z",                    fill: "#162232" },
+    { name: "Barra",         d: "M555,415 L630,400 L650,430 L620,455 L560,448 Z",                    fill: "#121c2c" },
+    { name: "Andaraí",       d: "M395,250 L435,240 L440,265 L415,272 L395,262 Z",                    fill: "#152030" },
+    { name: "Catete",        d: "M468,305 L498,295 L505,318 L480,325 Z",                             fill: "#1a2a3a" },
+    { name: "Flamengo",      d: "M465,315 L498,305 L505,332 L475,340 Z",                             fill: "#172030" },
+    { name: "Glória",        d: "M456,300 L480,292 L485,310 L462,316 Z",                             fill: "#141e2e" },
+    { name: "Bangu",         d: "M95,270 L155,255 L165,290 L140,310 L100,300 Z",                     fill: "#121c2c" },
+    { name: "Campo Grande",  d: "M80,320 L145,305 L155,340 L120,360 L82,348 Z",                      fill: "#132030" },
+    { name: "Jacarepaguá",   d: "M250,310 L330,295 L345,335 L310,355 L255,345 Z",                    fill: "#142030" },
+    { name: "Recreio",       d: "M430,430 L510,415 L525,445 L495,462 L432,455 Z",                    fill: "#121c2c" },
+    { name: "Ilha Gov.",     d: "M530,155 L590,145 L605,175 L575,190 L532,180 Z",                    fill: "#131e2e" },
+    { name: "Maré",          d: "M430,200 L465,192 L470,215 L445,220 Z",                             fill: "#142232" },
+    { name: "São Cristóvão", d: "M438,230 L470,220 L478,248 L455,255 L435,248 Z",                    fill: "#162535" },
+  ];
+
+  // Main roads / highways (approximate paths)
+  const roads = [
+    { d: "M100,290 Q200,270 350,255 Q430,248 510,255", w: 2.5, color: "#2a3f55" },   // Av. Brasil
+    { d: "M370,200 Q410,220 450,250 Q475,275 480,320", w: 2,   color: "#243448" },   // Radial Oeste
+    { d: "M340,230 Q380,245 415,270 Q445,295 462,315", w: 1.5, color: "#1e2e40" },   // Rua Uruguai
+    { d: "M490,250 Q495,280 495,320 Q495,355 495,400", w: 2,   color: "#243448" },   // Linha Vermelha
+    { d: "M510,255 Q550,240 590,230 Q640,218 700,210", w: 1.5, color: "#1e2e40" },   // Via Dutra
+    { d: "M460,320 Q470,360 490,400 Q510,435 530,460", w: 2,   color: "#243448" },   // Lagoa–Barra
+    { d: "M350,255 Q390,265 430,260 Q460,258 490,255", w: 1.5, color: "#1e2e40" },   // Radial N
+    { d: "M255,210 Q300,208 345,205 Q370,202 400,200", w: 1.5, color: "#1e2e40" },   // Metrô line
+  ];
+
+  // Water bodies
+  const water = [
+    // Guanabara Bay (simplified)
+    { d: "M490,180 Q560,160 640,150 Q720,145 790,160 Q830,180 840,220 Q820,260 780,280 Q720,295 650,290 Q590,285 545,270 Q510,258 490,250 Q480,230 490,180 Z", fill: "#0c1e35" },
+    // Lagoa Rodrigo de Freitas
+    { d: "M530,358 Q555,348 575,358 Q582,372 572,384 Q555,392 538,384 Q528,372 530,358 Z", fill: "#0c1e35" },
+    // Atlantic coast line
+    { d: "M490,400 Q520,410 555,415 Q600,425 645,432 Q700,440 760,445 Q800,448 840,450", fill: "none", stroke: "#0c1e35", sw: 8 },
+  ];
+
+  return (
+    <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)", background: "#0a1422", userSelect: "none" }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: "100%", height, display: "block" }}
+        onClick={() => setSelected(null)}
+      >
+        <defs>
+          <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+            <stop offset="0%"   stopColor="#0e1c2e" />
+            <stop offset="100%" stopColor="#07111e" />
+          </radialGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="softglow">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        {/* Background */}
+        <rect width={W} height={H} fill="url(#bgGrad)" />
+
+        {/* Grid lines */}
+        {[...Array(12)].map((_,i) => <line key={`h${i}`} x1={0} y1={i*H/11} x2={W} y2={i*H/11} stroke="rgba(255,255,255,0.025)" strokeWidth={1} />)}
+        {[...Array(16)].map((_,i) => <line key={`v${i}`} x1={i*W/15} y1={0} x2={i*W/15} y2={H} stroke="rgba(255,255,255,0.025)" strokeWidth={1} />)}
+
+        {/* Water bodies */}
+        {water.map((w, i) => (
+          w.fill && w.fill !== "none"
+            ? <path key={i} d={w.d} fill={w.fill} opacity={0.9} />
+            : <path key={i} d={w.d} fill="none" stroke={w.fill === "none" ? w.stroke || "#0c1e35" : w.fill} strokeWidth={w.sw || 1} />
+        ))}
+
+        {/* Neighborhoods */}
+        {neighborhoods.map(n => (
+          <path key={n.name} d={n.d} fill={n.fill} stroke="rgba(255,255,255,0.06)" strokeWidth={0.8} opacity={0.95} />
+        ))}
+
+        {/* Roads */}
+        {roads.map((r, i) => (
+          <path key={i} d={r.d} fill="none" stroke={r.color} strokeWidth={r.w} strokeLinecap="round" />
+        ))}
+
+        {/* Neighborhood labels */}
+        {[
+          { name: "Centro",       x: 485, y: 264 },
+          { name: "Tijuca",       x: 408, y: 218 },
+          { name: "Méier",        x: 322, y: 208 },
+          { name: "Penha",        x: 218, y: 200 },
+          { name: "Copacabana",   x: 514, y: 390 },
+          { name: "Botafogo",     x: 504, y: 346 },
+          { name: "Bangu",        x: 126, y: 280 },
+          { name: "Barra",        x: 600, y: 430 },
+          { name: "Jacarepaguá",  x: 295, y: 327 },
+          { name: "Ilha Gov.",    x: 568, y: 165 },
+        ].map(l => (
+          <text key={l.name} x={l.x} y={l.y} textAnchor="middle" fill="rgba(148,163,184,0.5)" fontSize={8.5} fontFamily="Sora,sans-serif" fontWeight={500}>{l.name}</text>
+        ))}
+
+        {/* Guanabara Bay label */}
+        <text x={660} y={215} textAnchor="middle" fill="rgba(96,165,250,0.3)" fontSize={11} fontFamily="Sora,sans-serif" fontStyle="italic">Baía de Guanabara</text>
+
+        {/* Pole zones */}
+        {showPoles && polePts.map(p => (
+          <g key={p.id}>
+            <circle cx={p.x} cy={p.y} r={62} fill={p.color} opacity={0.07} />
+            <circle cx={p.x} cy={p.y} r={62} fill="none" stroke={p.color} strokeWidth={1} strokeDasharray="5 4" opacity={0.3} />
+            <rect x={p.x - 42} y={p.y - 86} width={84} height={16} rx={4} fill="rgba(8,14,26,0.82)" />
+            <text x={p.x} y={p.y - 75} textAnchor="middle" fill={p.color} fontSize={9.5} fontWeight={700} fontFamily="Sora,sans-serif">{p.name}</text>
+          </g>
+        ))}
+
+        {/* Demand triangles */}
+        {showDemands && demandPts.map(d => {
+          const sel = selected?.id === d.id && selected?._t === "demand";
+          return (
+            <g key={d.id} style={{ cursor: "pointer" }} onClick={e => { e.stopPropagation(); setSelected(sel ? null : { ...d, _t: "demand" }); }}>
+              <polygon
+                points={`${d.x},${d.y - 10} ${d.x - 8},${d.y + 6} ${d.x + 8},${d.y + 6}`}
+                fill={d.sc} opacity={sel ? 1 : 0.9}
+                filter="url(#glow)"
+              />
+              {sel && <polygon points={`${d.x},${d.y - 14} ${d.x - 11},${d.y + 8} ${d.x + 11},${d.y + 8}`} fill="none" stroke={d.sc} strokeWidth={1.5} opacity={0.6} />}
+            </g>
+          );
+        })}
+
+        {/* Militant dots */}
+        {showMilitants && milPts.map(m => {
+          const r = 4.5 + m.votes * 0.065;
+          const sel = selected?.id === m.id && selected?._t === "militant";
+          return (
+            <g key={m.id} style={{ cursor: "pointer" }} onClick={e => { e.stopPropagation(); setSelected(sel ? null : { ...m, _t: "militant" }); }}>
+              <circle cx={m.x} cy={m.y} r={r * 3} fill={m.color} opacity={0.07} />
+              <circle cx={m.x} cy={m.y} r={r * 1.6} fill={m.color} opacity={0.18} />
+              <circle cx={m.x} cy={m.y} r={r} fill={m.color} opacity={sel ? 1 : 0.85} filter="url(#glow)" />
+              {sel && <circle cx={m.x} cy={m.y} r={r + 6} fill="none" stroke={m.color} strokeWidth={1.5} opacity={0.55} />}
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Info popup */}
+      {selected && (
+        <div style={{ position: "absolute", bottom: 14, left: 14, background: "rgba(8,14,28,0.97)", border: "1px solid rgba(37,99,235,0.22)", borderRadius: 12, padding: "13px 16px", minWidth: 220, zIndex: 10, backdropFilter: "blur(12px)" }}>
+          {selected._t === "militant" ? (
+            <>
+              <div style={{ fontWeight: 700, color: "#e2e8f0", fontSize: 13, marginBottom: 4 }}>{selected.name}</div>
+              <RoleBadge roleId={selected.role} small />
+              <div style={{ color: "#475569", fontSize: 11, marginTop: 6, marginBottom: 2 }}>{selected.neighborhood} — {selected.pole}</div>
+              <div style={{ color: "#475569", fontSize: 11, marginBottom: 9 }}>{selected.phone}</div>
+              <div style={{ display: "flex", gap: 5 }}>
+                <span style={{ background: `${selected.color}18`, color: selected.color, borderRadius: 5, padding: "2px 8px", fontSize: 9, fontWeight: 700 }}>{selected.votes} votos est.</span>
+                <span style={{ background: selected.status === "ativo" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: selected.status === "ativo" ? "#4ade80" : "#f87171", borderRadius: 5, padding: "2px 8px", fontSize: 9, fontWeight: 700 }}>{selected.status}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 700, color: "#e2e8f0", fontSize: 13, marginBottom: 4 }}>{selected.type}</div>
+              <div style={{ color: "#475569", fontSize: 11, marginBottom: 2 }}>{selected.address}</div>
+              <div style={{ color: "#475569", fontSize: 11, marginBottom: 9 }}>Reportado por {selected.reportedBy}</div>
+              <span style={{ background: `${selected.sc}18`, color: selected.sc, borderRadius: 5, padding: "2px 8px", fontSize: 9, fontWeight: 700 }}>{selected.status.replace("_", " ")}</span>
+            </>
+          )}
+          <button onClick={() => setSelected(null)} style={{ position: "absolute", top: 8, right: 8, background: "none", border: "none", color: "#475569", cursor: "pointer", display: "flex" }}><X size={12} /></button>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={{ position: "absolute", top: 12, right: 12, display: "flex", flexDirection: "column", gap: 5, zIndex: 10 }}>
+        {showMilitants && (
+          <div style={{ background: "rgba(8,14,28,0.88)", borderRadius: 6, padding: "4px 9px", fontSize: 10, color: "#64748b", display: "flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#2563eb", boxShadow: "0 0 5px #2563eb" }} />
+            Militantes
+          </div>
+        )}
+        {showDemands && (
+          <div style={{ background: "rgba(8,14,28,0.88)", borderRadius: 6, padding: "4px 9px", fontSize: 10, color: "#64748b", display: "flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderBottom: "8px solid #f59e0b" }} />
+            Demandas
+          </div>
+        )}
+        {showPoles && (
+          <div style={{ background: "rgba(8,14,28,0.88)", borderRadius: 6, padding: "4px 9px", fontSize: 10, color: "#64748b", display: "flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ width: 10, height: 10, borderRadius: "50%", border: "1.5px dashed #0891b2" }} />
+            Zonas
+          </div>
+        )}
+      </div>
+
+      {/* Scale indicator */}
+      <div style={{ position: "absolute", bottom: 12, right: 12, display: "flex", alignItems: "center", gap: 5, zIndex: 10 }}>
+        <div style={{ width: 40, height: 2, background: "#334155" }} />
+        <span style={{ fontSize: 9, color: "#334155" }}>~5 km</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── PROFILE MODAL ────────────────────────────────────────────────────────────
+function ProfileModal({ person, onClose, onSave, isAdmin }) {
+  const [form, setForm] = useState({ ...person });
+  const fileRef = useRef(null);
+  const handlePhoto = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setForm(f => ({ ...f, photo: ev.target.result }));
+    reader.readAsDataURL(file);
+  };
+  const rc = getRoleConfig(form.role);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div style={{ background: "#0d1626", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, width: "100%", maxWidth: 510, maxHeight: "90vh", overflowY: "auto", padding: 28 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <span style={{ fontWeight: 800, color: "#f1f5f9", fontSize: 16 }}>{isAdmin ? "Editar Perfil" : "Perfil"}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#475569", cursor: "pointer", display: "flex" }}><X size={17} /></button>
+        </div>
+        {/* Photo */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 24, gap: 10 }}>
+          <div style={{ position: "relative" }}>
+            <div style={{ width: 84, height: 84, borderRadius: 20, background: `${rc.color}18`, border: `2px solid ${rc.color}35`, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              {form.photo ? <img src={form.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 30, fontWeight: 700, color: rc.color }}>{form.name.split(" ").slice(0,2).map(n=>n[0]).join("")}</span>}
+            </div>
+            {isAdmin && (
+              <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: -5, right: -5, width: 26, height: 26, borderRadius: "50%", background: "#2563eb", border: "2px solid #0d1626", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <Camera size={11} color="#fff" />
+              </button>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: "none" }} />
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontWeight: 700, color: "#e2e8f0", fontSize: 16, marginBottom: 6 }}>{form.name}</div>
+            <RoleBadge roleId={form.role} />
+          </div>
+        </div>
+        {isAdmin ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Função no Gabinete</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                {LEADER_ROLES.map(r => (
+                  <button key={r.id} onClick={() => setForm(f => ({ ...f, role: r.id }))}
+                    style={{ background: form.role === r.id ? `${r.color}16` : "rgba(255,255,255,0.03)", border: `1px solid ${form.role === r.id ? r.color + "45" : "rgba(255,255,255,0.07)"}`, borderRadius: 9, padding: "8px 11px", color: form.role === r.id ? r.color : "#475569", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 7, fontFamily: "'Sora',sans-serif", transition: "all 0.15s" }}>
+                    <div style={{ width: 7, height: 7, borderRadius: "50%", background: r.color, flexShrink: 0 }} />
+                    {r.label}
+                    {form.role === r.id && <Check size={10} style={{ marginLeft: "auto" }} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {[{ key:"name", label:"Nome Completo", type:"text" },{ key:"phone", label:"Telefone", type:"text" },{ key:"neighborhood", label:"Bairro", type:"text" },{ key:"birthday", label:"Data de Nascimento", type:"date" }].map(f => (
+              <div key={f.key}>
+                <label style={labelStyle}>{f.label}</label>
+                <input type={f.type} value={form[f.key]||""} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} style={inputStyle} />
+              </div>
+            ))}
+            <div>
+              <label style={labelStyle}>Observações</label>
+              <textarea value={form.bio||""} onChange={e=>setForm(p=>({...p,bio:e.target.value}))} rows={3} style={{ ...inputStyle, resize:"vertical", lineHeight:1.6 }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Status</label>
+              <div style={{ display:"flex", gap:8 }}>
+                {["ativo","inativo"].map(s=>(
+                  <button key={s} onClick={()=>setForm(f=>({...f,status:s}))}
+                    style={{ flex:1, background:form.status===s?(s==="ativo"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"):"rgba(255,255,255,0.03)", border:`1px solid ${form.status===s?(s==="ativo"?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"):"rgba(255,255,255,0.07)"}`, borderRadius:9, padding:"8px", color:form.status===s?(s==="ativo"?"#4ade80":"#f87171"):"#475569", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif", textTransform:"capitalize" }}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:9, marginTop:4 }}>
+              <button onClick={onClose} style={{ flex:1, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:10, padding:"10px", color:"#64748b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>Cancelar</button>
+              <button onClick={()=>{onSave(form);onClose();}} style={{ flex:2, background:"linear-gradient(135deg,#2563eb,#0891b2)", border:"none", borderRadius:10, padding:"10px", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>Salvar Alterações</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:11 }}>
+            {[{label:"Pólo",value:form.pole},{label:"Bairro",value:form.neighborhood},{label:"Telefone",value:form.phone},{label:"Status",value:form.status}].map(item=>(
+              <div key={item.label} style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid rgba(255,255,255,0.04)", paddingBottom:9 }}>
+                <span style={{ color:"#475569", fontSize:12 }}>{item.label}</span>
+                <span style={{ color:"#e2e8f0", fontSize:12, fontWeight:600 }}>{item.value}</span>
+              </div>
+            ))}
+            {form.bio && <p style={{ color:"#64748b", fontSize:12, lineHeight:1.6, margin:0 }}>{form.bio}</p>}
+            <button onClick={onClose} style={{ marginTop:6, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:10, padding:"10px", color:"#64748b", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>Fechar</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── URGENCY BANNER ───────────────────────────────────────────────────────────
+function UrgencyBanner({ posts, onNavigate }) {
+  const [dismissed, setDismissed] = useState([]);
+  const visible = posts.filter(p => p.urgent && p.pinned && !dismissed.includes(p.id));
+  if (!visible.length) return null;
+  const post = visible[0];
+  return (
+    <div style={{ position:"relative", background:"linear-gradient(135deg,rgba(239,68,68,0.1),rgba(220,38,38,0.05))", border:"1px solid rgba(239,68,68,0.3)", borderLeft:"4px solid #ef4444", borderRadius:12, padding:"12px 17px", marginBottom:18, display:"flex", alignItems:"flex-start", gap:13, flexWrap:"wrap", animation:"urgencyPulse 3s ease-in-out infinite", overflow:"hidden" }}>
+      <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg,transparent,rgba(239,68,68,0.03),transparent)", animation:"sweep 3s linear infinite", pointerEvents:"none" }} />
+      <div style={{ width:36, height:36, borderRadius:10, background:"rgba(239,68,68,0.12)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><AlertCircle size={15} color="#ef4444"/></div>
+      <div style={{ flex:1, minWidth:160 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
+          <span style={{ background:"rgba(239,68,68,0.16)", color:"#fca5a5", borderRadius:4, padding:"1px 7px", fontSize:9, fontWeight:800, letterSpacing:"0.08em", textTransform:"uppercase" }}>Urgente</span>
+          <span style={{ color:"#fca5a5", fontWeight:700, fontSize:13 }}>{post.title}</span>
+        </div>
+        <p style={{ color:"#fecaca", fontSize:11, margin:0, lineHeight:1.5, opacity:0.78 }}>{post.body.slice(0,105)}{post.body.length>105?"…":""}</p>
+      </div>
+      <div style={{ display:"flex", gap:7, alignItems:"center" }}>
+        <button onClick={()=>onNavigate("mural")} style={{ background:"rgba(239,68,68,0.16)", border:"1px solid rgba(239,68,68,0.3)", color:"#fca5a5", borderRadius:7, padding:"6px 13px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>Ver no Mural</button>
+        <button onClick={()=>setDismissed(d=>[...d,post.id])} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", opacity:0.55, display:"flex" }}><X size={14}/></button>
+      </div>
+    </div>
+  );
+}
+
+// ─── SECTION TITLE ────────────────────────────────────────────────────────────
+function SectionTitle({ children }) {
+  return <div style={{ fontSize:10, fontWeight:700, color:"#334155", marginBottom:9, letterSpacing:"0.09em", textTransform:"uppercase" }}>{children}</div>;
+}
+
+// ─── STAT CARD ────────────────────────────────────────────────────────────────
+function StatCard({ icon:Icon, label, value, sub, color, trend }) {
+  return (
+    <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:13, padding:"17px 19px", position:"relative", overflow:"hidden", transition:"transform 0.2s,border-color 0.2s" }}
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=`${color}30`;e.currentTarget.style.transform="translateY(-2px)";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.05)";e.currentTarget.style.transform="translateY(0)";}}>
+      <div style={{ position:"absolute", top:-14, right:-14, width:60, height:60, borderRadius:"50%", background:`${color}0e`, filter:"blur(14px)" }}/>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:11 }}>
+        <div style={{ width:34, height:34, borderRadius:9, background:`${color}14`, display:"flex", alignItems:"center", justifyContent:"center" }}><Icon size={15} color={color}/></div>
+        {trend!=null&&<div style={{ display:"flex", alignItems:"center", gap:3, color:trend>0?"#22c55e":"#ef4444", fontSize:10, fontWeight:700 }}>{trend>0?<ArrowUp size={10}/>:<ArrowDown size={10}/>}{Math.abs(trend)}%</div>}
+      </div>
+      <div style={{ fontSize:23, fontWeight:700, color:"#f1f5f9", letterSpacing:"-0.02em" }}>{value}</div>
+      <div style={{ fontSize:12, color:"#475569", marginTop:2, fontWeight:500 }}>{label}</div>
+      {sub&&<div style={{ fontSize:10, color:"#334155", marginTop:3 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ─── POLE CARD ────────────────────────────────────────────────────────────────
+function PoleCard({ pole }) {
+  const pct = Math.round((pole.militants/pole.target)*100);
+  const bp  = Math.round((pole.spent/pole.budget)*100);
+  return (
+    <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:12, padding:15, borderLeft:`3px solid ${pole.color}`, transition:"background 0.2s" }}
+      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.035)"}
+      onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+        <div><div style={{ fontWeight:700, color:"#e2e8f0", fontSize:13 }}>{pole.name}</div><div style={{ color:"#475569", fontSize:11, marginTop:2 }}>{pole.leader}</div></div>
+        <span style={{ background:`${pole.color}16`, color:pole.color, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{pct}%</span>
+      </div>
+      <div style={{ marginBottom:5 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3, fontSize:10, color:"#334155" }}><span>Militantes</span><span>{pole.militants} / {pole.target}</span></div>
+        <div style={{ height:4, background:"rgba(255,255,255,0.05)", borderRadius:99, overflow:"hidden" }}><div style={{ height:"100%", width:`${pct}%`, background:pole.color, borderRadius:99 }}/></div>
+      </div>
+      <div style={{ paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.04)", display:"flex", justifyContent:"space-between", fontSize:10 }}>
+        <span style={{ color:"#334155" }}>Orçamento</span>
+        <span style={{ color:bp>85?"#ef4444":"#22c55e", fontWeight:700 }}>R$ {pole.spent.toLocaleString()} / R$ {pole.budget.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+}
+
+function DemandBadge({ status }) {
+  const c = { pendente:{label:"Pendente",color:"#f59e0b",bg:"rgba(245,158,11,0.09)"}, em_andamento:{label:"Em andamento",color:"#2563eb",bg:"rgba(37,99,235,0.09)"}, resolvido:{label:"Resolvido",color:"#22c55e",bg:"rgba(34,197,94,0.09)"} }[status]||{};
+  return <span style={{ background:c.bg, color:c.color, borderRadius:5, padding:"1px 7px", fontSize:10, fontWeight:700 }}>{c.label}</span>;
+}
+function PriorityDot({ priority }) {
+  const c = { alta:"#ef4444", media:"#f59e0b", baixa:"#22c55e" }[priority]||"#64748b";
+  return <div style={{ width:6, height:6, borderRadius:"50%", background:c, boxShadow:`0 0 4px ${c}`, flexShrink:0 }}/>;
+}
+
+// ─── VIEWS ────────────────────────────────────────────────────────────────────
+function DashboardView({ role, militants }) {
+  const total = POLES.reduce((a,p)=>a+p.militants,0);
+  const tgt   = POLES.reduce((a,p)=>a+p.target,0);
+  const pct   = Math.min((total/tgt)*100,100);
+  const barColor = pct<40?"#ef4444":pct<70?"#f59e0b":"#22c55e";
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+      {/* Birthday */}
+      <div style={{ background:"rgba(37,99,235,0.07)", border:"1px solid rgba(37,99,235,0.18)", borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", gap:13, flexWrap:"wrap" }}>
+        <div style={{ width:32, height:32, borderRadius:9, background:"rgba(37,99,235,0.14)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Gift size={14} color="#2563eb"/></div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontWeight:700, color:"#93c5fd", fontSize:12 }}>Aniversariantes Hoje</div>
+          <div style={{ color:"#475569", fontSize:11, marginTop:1 }}>{BIRTHDAYS_TODAY.map(b=>b.name).join(" · ")}</div>
+        </div>
+        <button onClick={()=>alert(BIRTHDAYS_TODAY.map(b=>`${b.name}: ${b.phone}`).join("\n"))}
+          style={{ background:"#25d366", color:"#fff", border:"none", borderRadius:7, padding:"6px 13px", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'Sora',sans-serif", flexShrink:0 }}>
+          <MessageSquare size={11}/> WhatsApp
+        </button>
+      </div>
+      {/* Thermometer */}
+      <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:13, padding:"17px 19px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:7 }}>
+          <span style={{ color:"#475569", fontSize:10, fontWeight:700, letterSpacing:"0.09em", textTransform:"uppercase" }}>Termômetro Eleitoral</span>
+          <span style={{ color:barColor, fontSize:11, fontWeight:700 }}>{pct.toFixed(1)}%</span>
+        </div>
+        <div style={{ position:"relative", height:7, background:"rgba(255,255,255,0.05)", borderRadius:99, overflow:"hidden" }}>
+          <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${barColor}77,${barColor})`, borderRadius:99, boxShadow:`0 0 8px ${barColor}55` }}/>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:5 }}>
+          <span style={{ color:"#475569", fontSize:10 }}>{total.toLocaleString()} cadastros</span>
+          <span style={{ color:"#334155", fontSize:10 }}>Meta: {tgt.toLocaleString()}</span>
+        </div>
+      </div>
+      {/* Stats */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))", gap:10 }}>
+        <StatCard icon={Users}       label="Militantes"      value={total.toLocaleString()} color="#2563eb" trend={12}/>
+        <StatCard icon={Building2}   label="Pólos Ativos"    value={POLES.length}           color="#0891b2" trend={0}/>
+        <StatCard icon={AlertCircle} label="Demandas Abertas" value={DEMANDS.filter(d=>d.status==="pendente").length} color="#f59e0b" trend={-5}/>
+        <StatCard icon={Trophy}      label="Liderança"       value="Igor N."  sub="2.340 pts" color="#7c3aed"/>
+      </div>
+      {role==="admin"&&(
+        <>
+          <div><SectionTitle>Distribuição Territorial</SectionTitle><RioMap height={290} militants={militants}/></div>
+          <div><SectionTitle>Gestão de Pólos</SectionTitle><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))", gap:9 }}>{POLES.map(p=><PoleCard key={p.id} pole={p}/>)}</div></div>
+        </>
+      )}
+      {role==="operator"&&(
+        <div><SectionTitle>Ações de Campo</SectionTitle>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:9 }}>
+            {[{icon:UserCheck,label:"Cadastrar Militante",color:"#2563eb"},{icon:Camera,label:"Registrar Demanda",color:"#f59e0b"},{icon:MapPin,label:"Check-in em Evento",color:"#22c55e"},{icon:FileText,label:"Enviar Ofício",color:"#7c3aed"}].map(a=>(
+              <button key={a.label} onClick={()=>alert(`Abrindo: ${a.label}`)}
+                style={{ background:`${a.color}07`, border:`1px solid ${a.color}22`, borderRadius:12, padding:"17px 13px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:8, transition:"all 0.2s", fontFamily:"'Sora',sans-serif" }}
+                onMouseEnter={e=>{e.currentTarget.style.background=`${a.color}14`;e.currentTarget.style.transform="scale(1.02)";}}
+                onMouseLeave={e=>{e.currentTarget.style.background=`${a.color}07`;e.currentTarget.style.transform="scale(1)";}}>
+                <a.icon size={20} color={a.color}/>
+                <span style={{ fontSize:11, fontWeight:600, color:"#64748b", textAlign:"center" }}>{a.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MapView({ militants }) {
+  const [sM,setSM]=useState(true); const [sD,setSD]=useState(true); const [sP,setSP]=useState(true);
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+        {[{l:"Militantes",v:sM,s:setSM,c:"#2563eb"},{l:"Demandas",v:sD,s:setSD,c:"#f59e0b"},{l:"Zonas",v:sP,s:setSP,c:"#0891b2"}].map(f=>(
+          <button key={f.l} onClick={()=>f.s(!f.v)} style={{ background:f.v?`${f.c}10`:"rgba(255,255,255,0.02)", border:`1px solid ${f.v?f.c+"30":"rgba(255,255,255,0.05)"}`, borderRadius:7, padding:"5px 13px", color:f.v?f.c:"#475569", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>{f.l}</button>
+        ))}
+      </div>
+      <RioMap key={`${sM}-${sD}-${sP}`} showMilitants={sM} showDemands={sD} showPoles={sP} height={460} militants={militants}/>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(172px,1fr))", gap:7 }}>
+        {POLES.map(p=>(
+          <div key={p.id} style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${p.color}22`, borderRadius:10, padding:"10px 12px", display:"flex", alignItems:"center", gap:9 }}>
+            <div style={{ width:28, height:28, borderRadius:8, background:`${p.color}14`, display:"flex", alignItems:"center", justifyContent:"center" }}><MapPin size={12} color={p.color}/></div>
+            <div><div style={{ fontWeight:600, color:"#e2e8f0", fontSize:12 }}>{p.name}</div><div style={{ color:"#475569", fontSize:10, marginTop:1 }}>{p.militants} militantes</div></div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background:"rgba(37,99,235,0.04)", border:"1px solid rgba(37,99,235,0.1)", borderRadius:10, padding:"8px 12px", fontSize:11, color:"#475569" }}>
+        Clique nos marcadores para visualizar os detalhes. O tamanho dos pontos é proporcional aos votos estimados.
+      </div>
+    </div>
+  );
+}
+
+function MilitantsView({ role, militants, setMilitants }) {
+  const [search,setSearch]=useState(""); const [filter,setFilter]=useState("todos");
+  const [roleFilter,setRoleFilter]=useState("todos"); const [showForm,setShowForm]=useState(false);
+  const [editPerson,setEditPerson]=useState(null);
+  const [form,setForm]=useState({ name:"", phone:"", neighborhood:"", pole:"Zona Norte", birthday:"", role:"militante_base", status:"ativo", bio:"", photo:null, votes:0, lat:-22.91, lng:-43.21 });
+  const photoRef=useRef(null);
+
+  const filtered = militants.filter(m =>
+    (filter==="todos"||m.pole===filter)&&(roleFilter==="todos"||m.role===roleFilter)&&
+    (m.name.toLowerCase().includes(search.toLowerCase())||m.neighborhood.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const handlePhotoForm=(e)=>{
+    const file=e.target.files[0]; if(!file)return;
+    const reader=new FileReader(); reader.onload=(ev)=>setForm(f=>({...f,photo:ev.target.result})); reader.readAsDataURL(file);
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      {editPerson&&<ProfileModal person={editPerson} onClose={()=>setEditPerson(null)} onSave={(u)=>setMilitants(ms=>ms.map(m=>m.id===u.id?u:m))} isAdmin={role==="admin"}/>}
+      {/* Toolbar */}
+      <div style={{ display:"flex", gap:7, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ flex:1, minWidth:170, position:"relative" }}>
+          <Search size={12} color="#334155" style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)" }}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nome ou bairro…" style={{ ...inputStyle, paddingLeft:30 }}/>
+        </div>
+        <select value={filter} onChange={e=>setFilter(e.target.value)} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"8px 11px", color:"#64748b", fontSize:11, outline:"none", fontFamily:"'Sora',sans-serif", cursor:"pointer" }}>
+          <option value="todos">Todos os Pólos</option>
+          {POLES.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}
+        </select>
+        <select value={roleFilter} onChange={e=>setRoleFilter(e.target.value)} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"8px 11px", color:"#64748b", fontSize:11, outline:"none", fontFamily:"'Sora',sans-serif", cursor:"pointer" }}>
+          <option value="todos">Todas as Funções</option>
+          {LEADER_ROLES.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>
+        {role==="admin"&&<button onClick={()=>setShowForm(true)} style={{ background:"linear-gradient(135deg,#2563eb,#0891b2)", color:"#fff", border:"none", borderRadius:8, padding:"8px 15px", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'Sora',sans-serif" }}><Plus size={12}/>Novo Militante</button>}
+      </div>
+
+      {/* Register form */}
+      {showForm&&role==="admin"&&(
+        <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(37,99,235,0.18)", borderRadius:14, padding:18 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <span style={{ fontWeight:700, color:"#e2e8f0", fontSize:14 }}>Cadastrar Militante</span>
+            <button onClick={()=>setShowForm(false)} style={{ background:"none", border:"none", color:"#475569", cursor:"pointer" }}><X size={15}/></button>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:16 }}>
+            <div style={{ position:"relative" }}>
+              <div style={{ width:56, height:56, borderRadius:13, background:"rgba(37,99,235,0.09)", border:"1.5px solid rgba(37,99,235,0.22)", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                {form.photo?<img src={form.photo} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/>:<User size={20} color="#2563eb"/>}
+              </div>
+              <button onClick={()=>photoRef.current.click()} style={{ position:"absolute", bottom:-4, right:-4, width:20, height:20, borderRadius:"50%", background:"#2563eb", border:"2px solid #0c1424", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><Camera size={9} color="#fff"/></button>
+              <input ref={photoRef} type="file" accept="image/*" onChange={handlePhotoForm} style={{ display:"none" }}/>
+            </div>
+            <div style={{ color:"#475569", fontSize:11 }}>Clique na câmera para adicionar foto de perfil</div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:9 }}>
+            {[{key:"name",label:"Nome Completo",type:"text",ph:"Nome…"},{key:"phone",label:"Telefone",type:"text",ph:"(21) 99999-9999"},{key:"neighborhood",label:"Bairro",type:"text",ph:"Bairro…"},{key:"birthday",label:"Data de Nascimento",type:"date",ph:""}].map(f=>(
+              <div key={f.key}><label style={labelStyle}>{f.label}</label><input type={f.type} value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.ph} style={inputStyle}/></div>
+            ))}
+            <div><label style={labelStyle}>Pólo</label><select value={form.pole} onChange={e=>setForm(p=>({...p,pole:e.target.value}))} style={{ ...inputStyle,cursor:"pointer" }}>{POLES.map(p=><option key={p.id} value={p.name}>{p.name}</option>)}</select></div>
+            <div><label style={labelStyle}>Função</label><select value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))} style={{ ...inputStyle,cursor:"pointer" }}>{LEADER_ROLES.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}</select></div>
+            <div style={{ gridColumn:"1 / -1" }}><label style={labelStyle}>Observações</label><textarea value={form.bio} onChange={e=>setForm(p=>({...p,bio:e.target.value}))} placeholder="Notas sobre o militante…" rows={2} style={{ ...inputStyle,resize:"vertical",lineHeight:1.6 }}/></div>
+            <div style={{ gridColumn:"1 / -1", display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button onClick={()=>setShowForm(false)} style={{ background:"none", border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding:"8px 15px", color:"#475569", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>Cancelar</button>
+              <button onClick={()=>{setMilitants(ms=>[{...form,id:Date.now()},...ms]);setShowForm(false);setForm({name:"",phone:"",neighborhood:"",pole:"Zona Norte",birthday:"",role:"militante_base",status:"ativo",bio:"",photo:null,votes:0,lat:-22.91+(Math.random()-0.5)*0.1,lng:-43.21+(Math.random()-0.5)*0.15});}} style={{ background:"linear-gradient(135deg,#2563eb,#0891b2)", color:"#fff", border:"none", borderRadius:8, padding:"8px 16px", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'Sora',sans-serif" }}><MapPin size={11}/>Cadastrar com Geolocalização</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {filtered.map(m=>{
+          const rc=getRoleConfig(m.role);
+          return(
+            <div key={m.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:11, padding:"11px 13px", display:"flex", alignItems:"center", gap:11, flexWrap:"wrap", transition:"all 0.18s" }}
+              onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,0.03)";e.currentTarget.style.borderColor=`${rc.color}18`;}}
+              onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.02)";e.currentTarget.style.borderColor="rgba(255,255,255,0.05)";}}>
+              <Avatar person={m} size={40} showRole/>
+              <div style={{ flex:1, minWidth:100 }}>
+                <div style={{ fontWeight:700, color:"#e2e8f0", fontSize:13 }}>{m.name}</div>
+                <div style={{ marginTop:3 }}><RoleBadge roleId={m.role} small/></div>
+                <div style={{ color:"#475569", fontSize:10, marginTop:3 }}>{m.neighborhood} · {m.pole}</div>
+              </div>
+              <div style={{ color:"#334155", fontSize:11, display:"flex", alignItems:"center", gap:3 }}><Phone size={9}/>{m.phone}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:3 }}><TrendingUp size={10} color="#2563eb"/><span style={{ color:"#60a5fa", fontSize:11, fontWeight:700 }}>{m.votes}</span><span style={{ color:"#334155", fontSize:9 }}>votos</span></div>
+              <span style={{ background:m.status==="ativo"?"rgba(34,197,94,0.09)":"rgba(239,68,68,0.09)", color:m.status==="ativo"?"#4ade80":"#f87171", borderRadius:5, padding:"1px 7px", fontSize:9, fontWeight:700 }}>{m.status}</span>
+              <div style={{ display:"flex", gap:4 }}>
+                <button onClick={()=>alert(`WhatsApp: ${m.phone}`)} style={{ background:"rgba(37,211,102,0.07)", border:"1px solid rgba(37,211,102,0.14)", borderRadius:6, padding:"4px 6px", cursor:"pointer", color:"#25d366", display:"flex" }}><MessageSquare size={11}/></button>
+                <button onClick={()=>setEditPerson(m)} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:6, padding:"4px 6px", cursor:"pointer", color:"#475569", display:"flex" }}><Edit size={11}/></button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ textAlign:"center", color:"#334155", fontSize:10 }}>{filtered.length} militante{filtered.length!==1?"s":""} encontrado{filtered.length!==1?"s":""}</div>
+    </div>
+  );
+}
+
+function ZeladoriaView() {
+  const [demands,setDemands]=useState(DEMANDS); const [showForm,setShowForm]=useState(false);
+  const [filter,setFilter]=useState("todos"); const [form,setForm]=useState({type:"Buraco na Via",address:"",priority:"media"});
+  const filtered=filter==="todos"?demands:demands.filter(d=>d.status===filter);
+  const types=["Buraco na Via","Iluminação Pública","Limpeza Urbana","Semáforo Quebrado","Calçada Irregular","Outro"];
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ display:"flex", gap:7, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ flex:1, display:"flex", gap:6, flexWrap:"wrap" }}>
+          {["todos","pendente","em_andamento","resolvido"].map(s=>(
+            <button key={s} onClick={()=>setFilter(s)} style={{ background:filter===s?"rgba(37,99,235,0.12)":"rgba(255,255,255,0.02)", border:filter===s?"1px solid rgba(37,99,235,0.3)":"1px solid rgba(255,255,255,0.05)", borderRadius:7, padding:"5px 12px", color:filter===s?"#60a5fa":"#475569", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>
+              {s==="todos"?"Todas":s==="em_andamento"?"Em Andamento":s.charAt(0).toUpperCase()+s.slice(1)}
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>setShowForm(true)} style={{ background:"linear-gradient(135deg,#d97706,#b45309)", color:"#fff", border:"none", borderRadius:8, padding:"8px 15px", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'Sora',sans-serif" }}><Camera size={12}/>Registrar Demanda</button>
+      </div>
+      {showForm&&(
+        <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(217,119,6,0.22)", borderRadius:13, padding:17 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13 }}>
+            <span style={{ fontWeight:700, color:"#e2e8f0", fontSize:13 }}>Nova Demanda de Zeladoria</span>
+            <button onClick={()=>setShowForm(false)} style={{ background:"none", border:"none", color:"#475569", cursor:"pointer" }}><X size={15}/></button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(185px,1fr))", gap:9 }}>
+            <div><label style={labelStyle}>Tipo de Problema</label><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={{ ...inputStyle,cursor:"pointer" }}>{types.map(t=><option key={t}>{t}</option>)}</select></div>
+            <div><label style={labelStyle}>Endereço</label><input value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} placeholder="Rua, número, bairro…" style={inputStyle}/></div>
+            <div><label style={labelStyle}>Prioridade</label><select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} style={{ ...inputStyle,cursor:"pointer" }}><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select></div>
+            <div style={{ display:"flex", alignItems:"flex-end", gap:7 }}>
+              <button onClick={()=>alert("Câmera aberta. Foto e geolocalização capturadas.")} style={{ flex:1, background:"rgba(217,119,6,0.09)", border:"1px solid rgba(217,119,6,0.22)", color:"#d97706", borderRadius:8, padding:"8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><Camera size={11}/>Foto</button>
+              <button onClick={()=>{setDemands(ds=>[{id:Date.now(),...form,status:"pendente",date:new Date().toISOString().split("T")[0],reportedBy:"Ricardo Mendes",lat:-22.91+(Math.random()-0.5)*0.08,lng:-43.21+(Math.random()-0.5)*0.12},...ds]);setShowForm(false);alert(`Demanda "${form.type}" registrada. Ofício de Gabinete gerado automaticamente.`);}} style={{ flex:2, background:"linear-gradient(135deg,#d97706,#b45309)", border:"none", color:"#fff", borderRadius:8, padding:"8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><FileText size={11}/>Gerar Ofício</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:9 }}>
+        {[{label:"Pendentes",count:demands.filter(d=>d.status==="pendente").length,color:"#f59e0b"},{label:"Em Andamento",count:demands.filter(d=>d.status==="em_andamento").length,color:"#2563eb"},{label:"Resolvidas",count:demands.filter(d=>d.status==="resolvido").length,color:"#22c55e"}].map(s=>(
+          <div key={s.label} style={{ background:`${s.color}05`, border:`1px solid ${s.color}15`, borderRadius:10, padding:"11px", textAlign:"center" }}>
+            <div style={{ fontSize:22, fontWeight:800, color:s.color }}>{s.count}</div>
+            <div style={{ fontSize:9, color:"#334155", fontWeight:700, marginTop:2, textTransform:"uppercase", letterSpacing:"0.07em" }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {filtered.map(d=>(
+          <div key={d.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.04)", borderRadius:11, padding:"12px 14px", transition:"background 0.2s" }}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.032)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}>
+            <div style={{ display:"flex", alignItems:"flex-start", gap:9, flexWrap:"wrap" }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4, flexWrap:"wrap" }}>
+                  <PriorityDot priority={d.priority}/>
+                  <span style={{ fontWeight:700, color:"#e2e8f0", fontSize:13 }}>{d.type}</span>
+                  <DemandBadge status={d.status}/>
+                </div>
+                <div style={{ color:"#475569", fontSize:11, display:"flex", alignItems:"center", gap:3 }}><MapPin size={9}/>{d.address}</div>
+                <div style={{ color:"#334155", fontSize:10, marginTop:3, display:"flex", gap:10 }}><span>Reportado por {d.reportedBy}</span><span>{new Date(d.date).toLocaleDateString("pt-BR")}</span></div>
+              </div>
+              <button onClick={()=>alert(`Gerando Ofício de Gabinete:\n${d.type} — ${d.address}`)} style={{ background:"rgba(37,99,235,0.07)", border:"1px solid rgba(37,99,235,0.15)", borderRadius:6, padding:"5px 9px", cursor:"pointer", color:"#60a5fa", display:"flex", alignItems:"center", gap:4, fontSize:10, fontWeight:700, fontFamily:"'Sora',sans-serif" }}><FileText size={10}/>Ofício</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MuralView({ role, posts, setPosts }) {
+  const [filter,setFilter]=useState("todos"); const [expandedId,setExpanded]=useState(null);
+  const [showCompose,setCompose]=useState(false); const [draft,setDraft]=useState({title:"",body:"",type:"comunicado",urgent:false});
+  const ME=role==="admin"?"Dep. Carlos Vasconcelos":"Ricardo Mendes";
+  const typeConfig={ comunicado:{label:"Comunicado",color:"#2563eb",bg:"rgba(37,99,235,0.09)"}, acao:{label:"Ação",color:"#059669",bg:"rgba(5,150,105,0.09)"}, documento:{label:"Documento",color:"#7c3aed",bg:"rgba(124,58,237,0.09)"}, foto:{label:"Fotos",color:"#d97706",bg:"rgba(217,119,6,0.09)"} };
+  const filtered=[...posts].filter(p=>filter==="todos"||p.type===filter).sort((a,b)=>{if(a.pinned&&!b.pinned)return -1;if(!a.pinned&&b.pinned)return 1;if(a.urgent&&!b.urgent)return -1;if(!a.urgent&&b.urgent)return 1;return new Date(b.date)-new Date(a.date);});
+  const markRead =id=>setPosts(ps=>ps.map(p=>p.id===id&&!p.readBy.includes(ME)?{...p,readBy:[...p.readBy,ME]}:p));
+  const togglePin=id=>setPosts(ps=>ps.map(p=>p.id===id?{...p,pinned:!p.pinned}:p));
+  const toggleUrg=id=>setPosts(ps=>ps.map(p=>p.id===id?{...p,urgent:!p.urgent}:p));
+  const deletePost=id=>setPosts(ps=>ps.filter(p=>p.id!==id));
+  const publish=()=>{ if(!draft.title.trim())return; setPosts(ps=>[{id:Date.now(),urgent:draft.urgent,pinned:draft.urgent,type:draft.type,title:draft.title,body:draft.body,author:ME,date:new Date().toISOString(),attachments:[],images:[],readBy:[ME]},...ps]); setDraft({title:"",body:"",type:"comunicado",urgent:false}); setCompose(false); };
+  const unread=posts.filter(p=>!p.readBy.includes(ME)).length;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
+      <div style={{ display:"flex", gap:7, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ flex:1, display:"flex", gap:5, flexWrap:"wrap", alignItems:"center" }}>
+          {["todos","comunicado","acao","documento","foto"].map(f=>(
+            <button key={f} onClick={()=>setFilter(f)} style={{ background:filter===f?"rgba(37,99,235,0.12)":"rgba(255,255,255,0.02)", border:filter===f?"1px solid rgba(37,99,235,0.28)":"1px solid rgba(255,255,255,0.05)", borderRadius:7, padding:"5px 12px", color:filter===f?"#60a5fa":"#475569", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>
+              {f==="todos"?"Todos":typeConfig[f].label}
+            </button>
+          ))}
+          {unread>0&&<span style={{ background:"rgba(239,68,68,0.1)", color:"#f87171", border:"1px solid rgba(239,68,68,0.22)", borderRadius:20, padding:"1px 9px", fontSize:9, fontWeight:700 }}>{unread} não {unread>1?"lidos":"lido"}</span>}
+        </div>
+        {role==="admin"&&<button onClick={()=>setCompose(!showCompose)} style={{ background:"linear-gradient(135deg,#2563eb,#0891b2)", color:"#fff", border:"none", borderRadius:8, padding:"8px 15px", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:5, fontFamily:"'Sora',sans-serif" }}><Megaphone size={12}/>Publicar</button>}
+      </div>
+      {showCompose&&role==="admin"&&(
+        <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(37,99,235,0.18)", borderRadius:15, padding:18 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:15 }}>
+            <span style={{ fontWeight:700, color:"#e2e8f0", fontSize:13 }}>Nova Publicação</span>
+            <button onClick={()=>setCompose(false)} style={{ background:"none", border:"none", color:"#475569", cursor:"pointer" }}><X size={15}/></button>
+          </div>
+          <div style={{ display:"flex", gap:5, marginBottom:11, flexWrap:"wrap" }}>
+            {Object.entries(typeConfig).map(([k,v])=>(
+              <button key={k} onClick={()=>setDraft(d=>({...d,type:k}))} style={{ background:draft.type===k?v.bg:"rgba(255,255,255,0.02)", border:`1px solid ${draft.type===k?v.color+"38":"rgba(255,255,255,0.06)"}`, borderRadius:7, padding:"5px 11px", color:draft.type===k?v.color:"#475569", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"'Sora',sans-serif" }}>{v.label}</button>
+            ))}
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:11, padding:"9px 12px", background:draft.urgent?"rgba(239,68,68,0.07)":"rgba(255,255,255,0.02)", border:`1px solid ${draft.urgent?"rgba(239,68,68,0.22)":"rgba(255,255,255,0.05)"}`, borderRadius:9 }}>
+            <AlertCircle size={13} color={draft.urgent?"#ef4444":"#475569"}/>
+            <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:700, color:draft.urgent?"#fca5a5":"#64748b" }}>Marcar como Urgente</div><div style={{ fontSize:10, color:"#334155" }}>Exibe alerta no Dashboard de todos os usuários</div></div>
+            <button onClick={()=>setDraft(d=>({...d,urgent:!d.urgent}))} style={{ width:36, height:20, borderRadius:99, background:draft.urgent?"#ef4444":"rgba(255,255,255,0.07)", border:"none", cursor:"pointer", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
+              <div style={{ position:"absolute", top:2, left:draft.urgent?17:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
+            </button>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <input value={draft.title} onChange={e=>setDraft(d=>({...d,title:e.target.value}))} placeholder="Título da publicação…" style={{ ...inputStyle,fontSize:13,fontWeight:600 }}/>
+            <textarea value={draft.body} onChange={e=>setDraft(d=>({...d,body:e.target.value}))} placeholder="Texto do comunicado…" rows={4} style={{ ...inputStyle,resize:"vertical",lineHeight:1.6 }}/>
+            <div style={{ display:"flex", gap:7, flexWrap:"wrap", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ display:"flex", gap:6 }}>
+                <button onClick={()=>alert("Seletor de arquivo aberto")} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:7, padding:"6px 12px", color:"#475569", fontSize:10, fontWeight:600, cursor:"pointer", fontFamily:"'Sora',sans-serif", display:"flex", alignItems:"center", gap:4 }}><Paperclip size={11}/>Anexar PDF</button>
+                <button onClick={()=>alert("Galeria aberta")} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:7, padding:"6px 12px", color:"#475569", fontSize:10, fontWeight:600, cursor:"pointer", fontFamily:"'Sora',sans-serif", display:"flex", alignItems:"center", gap:4 }}><ImageIcon size={11}/>Fotos</button>
+              </div>
+              <button onClick={publish} style={{ background:"linear-gradient(135deg,#2563eb,#0891b2)", color:"#fff", border:"none", borderRadius:8, padding:"8px 17px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"'Sora',sans-serif", display:"flex", alignItems:"center", gap:6 }}><Send size={11}/>Publicar{draft.urgent?" — Urgente":""}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+        {filtered.length===0&&<div style={{ textAlign:"center", color:"#334155", padding:"32px 0", fontSize:12 }}>Nenhuma publicação encontrada.</div>}
+        {filtered.map(post=>{
+          const cfg=typeConfig[post.type]||typeConfig.comunicado;
+          const isRead=post.readBy.includes(ME); const isExp=expandedId===post.id;
+          const TypeIcon=post.type==="comunicado"?Megaphone:post.type==="acao"?UserCheck:post.type==="documento"?FileText:ImageIcon;
+          return(
+            <div key={post.id} style={{ background:post.urgent?"linear-gradient(135deg,rgba(239,68,68,0.05),rgba(10,16,32,0.4))":isRead?"rgba(255,255,255,0.015)":"rgba(255,255,255,0.028)", border:post.urgent?"1px solid rgba(239,68,68,0.22)":isRead?"1px solid rgba(255,255,255,0.04)":"1px solid rgba(37,99,235,0.16)", borderLeft:`3px solid ${post.urgent?"#ef4444":isRead?"rgba(255,255,255,0.06)":"#2563eb"}`, borderRadius:13, overflow:"hidden" }}>
+              <div style={{ padding:"14px 16px" }}>
+                <div style={{ display:"flex", alignItems:"flex-start", gap:10, flexWrap:"wrap" }}>
+                  <div style={{ width:38, height:38, borderRadius:11, background:cfg.bg, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><TypeIcon size={15} color={cfg.color}/></div>
+                  <div style={{ flex:1, minWidth:140 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:3 }}>
+                      {post.urgent&&<span style={{ background:"rgba(239,68,68,0.16)", color:"#fca5a5", borderRadius:4, padding:"1px 7px", fontSize:8, fontWeight:800, letterSpacing:"0.08em", textTransform:"uppercase", display:"flex", alignItems:"center", gap:3 }}><AlertCircle size={7}/>Urgente</span>}
+                      {post.pinned&&<span style={{ background:"rgba(251,191,36,0.1)", color:"#fbbf24", borderRadius:4, padding:"1px 7px", fontSize:8, fontWeight:700, display:"flex", alignItems:"center", gap:3 }}><Pin size={7}/>Fixado</span>}
+                      <span style={{ background:cfg.bg, color:cfg.color, borderRadius:4, padding:"1px 7px", fontSize:8, fontWeight:700 }}>{cfg.label}</span>
+                      {!isRead&&<div style={{ width:5, height:5, borderRadius:"50%", background:"#2563eb", boxShadow:"0 0 4px #2563eb" }}/>}
+                    </div>
+                    <div style={{ fontWeight:700, color:"#f1f5f9", fontSize:13, lineHeight:1.3 }}>{post.title}</div>
+                    <div style={{ color:"#475569", fontSize:10, marginTop:2 }}>{post.author} · {new Date(post.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"short",year:"numeric"})}</div>
+                  </div>
+                  <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                    {role==="admin"&&(<>
+                      <button onClick={()=>togglePin(post.id)} title={post.pinned?"Desafixar":"Fixar"} style={{ background:post.pinned?"rgba(251,191,36,0.1)":"rgba(255,255,255,0.03)", border:"none", borderRadius:6, padding:"4px 5px", cursor:"pointer", color:post.pinned?"#fbbf24":"#334155", display:"flex" }}><Pin size={10}/></button>
+                      <button onClick={()=>toggleUrg(post.id)} style={{ background:post.urgent?"rgba(239,68,68,0.1)":"rgba(255,255,255,0.03)", border:"none", borderRadius:6, padding:"4px 5px", cursor:"pointer", color:post.urgent?"#ef4444":"#334155", display:"flex" }}><AlertCircle size={10}/></button>
+                      <button onClick={()=>deletePost(post.id)} style={{ background:"rgba(255,255,255,0.03)", border:"none", borderRadius:6, padding:"4px 5px", cursor:"pointer", color:"#334155", display:"flex" }}><X size={10}/></button>
+                    </>)}
+                    <button onClick={()=>setExpanded(isExp?null:post.id)} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:6, padding:"4px 8px", cursor:"pointer", color:"#64748b", display:"flex", alignItems:"center", gap:3, fontSize:10, fontWeight:600, fontFamily:"'Sora',sans-serif" }}>
+                      {isExp?<ChevronUp size={10}/>:<ChevronDown size={10}/>}{isExp?"Fechar":"Ver"}
+                    </button>
+                  </div>
+                </div>
+                {!isExp&&<p style={{ color:"#64748b", fontSize:11, margin:"8px 0 0 48px", lineHeight:1.6, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{post.body}</p>}
+              </div>
+              {isExp&&(
+                <div style={{ padding:"0 16px 16px", borderTop:"1px solid rgba(255,255,255,0.04)" }}>
+                  <p style={{ color:"#94a3b8", fontSize:12, lineHeight:1.7, margin:"12px 0" }}>{post.body}</p>
+                  {post.images.length>0&&(
+                    <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(post.images.length,3)},1fr)`, gap:6, marginBottom:12 }}>
+                      {post.images.map((img,i)=>(
+                        <div key={i} style={{ position:"relative", borderRadius:9, overflow:"hidden", aspectRatio:"16/9", background:img, cursor:"pointer" }} onClick={()=>alert("Abrindo imagem em tela cheia…")}>
+                          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.14)" }}><ImageIcon size={18} color="rgba(255,255,255,0.35)"/></div>
+                          <button onClick={e=>{e.stopPropagation();alert(`Baixando foto ${i+1}…`);}} style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,0.65)", border:"none", borderRadius:5, padding:"3px 8px", color:"#fff", fontSize:9, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:3, fontFamily:"'Sora',sans-serif" }}><Download size={9}/>Baixar</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {post.attachments.length>0&&(
+                    <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:12 }}>
+                      {post.attachments.map((att,i)=>{
+                        const ec=att.type==="pdf"?"#ef4444":"#22c55e";
+                        return(
+                          <div key={i} style={{ display:"flex", alignItems:"center", gap:9, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:8, padding:"8px 12px" }}>
+                            <div style={{ width:28, height:28, borderRadius:7, background:`${ec}13`, display:"flex", alignItems:"center", justifyContent:"center" }}><FileText size={12} color={ec}/></div>
+                            <div style={{ flex:1 }}><div style={{ fontWeight:600, color:"#e2e8f0", fontSize:12 }}>{att.name}</div><div style={{ color:"#475569", fontSize:10 }}>{att.size} · {att.type.toUpperCase()}</div></div>
+                            <button onClick={()=>alert(`Baixando ${att.name}…`)} style={{ background:"rgba(37,99,235,0.09)", border:"1px solid rgba(37,99,235,0.18)", borderRadius:6, padding:"5px 11px", color:"#60a5fa", fontSize:10, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:4, fontFamily:"'Sora',sans-serif" }}><Download size={10}/>Download</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.04)" }}>
+                    <div style={{ flex:1, display:"flex", alignItems:"center", gap:4 }}>
+                      <Eye size={10} color="#334155"/>
+                      <span style={{ color:"#334155", fontSize:10 }}>{post.readBy.length} leitura{post.readBy.length!==1?"s":""}</span>
+                      {role==="admin"&&post.readBy.length>0&&<span style={{ color:"#2d3748", fontSize:10 }}>— {post.readBy.slice(0,2).join(", ")}{post.readBy.length>2?` +${post.readBy.length-2}`:""}</span>}
+                    </div>
+                    <button onClick={()=>alert(`Compartilhando no WhatsApp: "${post.title}"`)} style={{ background:"rgba(37,211,102,0.07)", border:"1px solid rgba(37,211,102,0.15)", borderRadius:6, padding:"5px 11px", color:"#25d366", fontSize:10, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:4, fontFamily:"'Sora',sans-serif" }}><MessageSquare size={10}/>Compartilhar</button>
+                    {!isRead?(
+                      <button onClick={()=>markRead(post.id)} style={{ background:"rgba(37,99,235,0.09)", border:"1px solid rgba(37,99,235,0.18)", borderRadius:6, padding:"5px 11px", color:"#60a5fa", fontSize:10, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:4, fontFamily:"'Sora',sans-serif" }}><CheckCheck size={10}/>Marcar como Lido</button>
+                    ):(
+                      <div style={{ display:"flex", alignItems:"center", gap:3, color:"#4ade80", fontSize:10, fontWeight:700 }}><CheckCheck size={10}/>Lido</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RankingView({ militants }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ background:"rgba(124,58,237,0.06)", border:"1px solid rgba(124,58,237,0.16)", borderRadius:13, padding:"13px 17px", display:"flex", alignItems:"center", gap:11 }}>
+        <div style={{ width:34, height:34, borderRadius:9, background:"rgba(124,58,237,0.13)", display:"flex", alignItems:"center", justifyContent:"center" }}><Zap size={15} color="#7c3aed"/></div>
+        <div>
+          <div style={{ fontWeight:700, color:"#c4b5fd", fontSize:12 }}>Ranking de Performance</div>
+          <div style={{ color:"#475569", fontSize:10, marginTop:1 }}>Pontuação: Militantes × 20 + Demandas × 30</div>
+        </div>
+      </div>
+      {RANKING.map((r,i)=>{
+        const mil=militants.find(m=>m.name===r.name);
+        return(
+          <div key={r.pos} style={{ background:i===0?"linear-gradient(135deg,rgba(251,191,36,0.06),rgba(10,16,32,0.5))":"rgba(255,255,255,0.02)", border:i===0?"1px solid rgba(251,191,36,0.2)":"1px solid rgba(255,255,255,0.04)", borderRadius:12, padding:"13px 15px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", transition:"all 0.2s" }}
+            onMouseEnter={e=>e.currentTarget.style.transform="translateX(3px)"}
+            onMouseLeave={e=>e.currentTarget.style.transform="translateX(0)"}>
+            <div style={{ width:30, height:30, borderRadius:8, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:900, fontSize:13, background:i===0?"rgba(251,191,36,0.15)":i===1?"rgba(148,163,184,0.1)":i===2?"rgba(205,127,50,0.1)":"rgba(255,255,255,0.04)", color:i===0?"#fbbf24":i===1?"#94a3b8":i===2?"#cd7f32":"#334155" }}>
+              {["1°","2°","3°"][i]||r.pos}
+            </div>
+            {mil&&<Avatar person={mil} size={36} showRole/>}
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:700, color:"#e2e8f0", fontSize:13 }}>{r.name}</div>
+              <div style={{ marginTop:3 }}><RoleBadge roleId={r.role} small/></div>
+              <div style={{ color:"#475569", fontSize:10, marginTop:2 }}>{r.pole}</div>
+            </div>
+            <div style={{ display:"flex", gap:13 }}>
+              <div style={{ textAlign:"center" }}><div style={{ color:"#60a5fa", fontWeight:700, fontSize:14 }}>{r.militants}</div><div style={{ color:"#334155", fontSize:8, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em" }}>Militantes</div></div>
+              <div style={{ textAlign:"center" }}><div style={{ color:"#34d399", fontWeight:700, fontSize:14 }}>{r.demands}</div><div style={{ color:"#334155", fontSize:8, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em" }}>Demandas</div></div>
+            </div>
+            <div style={{ textAlign:"right", minWidth:68 }}>
+              <div style={{ fontWeight:800, fontSize:18, color:i===0?"#fbbf24":"#e2e8f0" }}>{r.score.toLocaleString()}</div>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:2, marginTop:2 }}>
+                {r.trend==="up"?<ArrowUp size={9} color="#22c55e"/>:<ArrowDown size={9} color="#ef4444"/>}
+                <span style={{ color:r.trend==="up"?"#22c55e":"#ef4444", fontSize:9, fontWeight:700 }}>pts</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function PollyFlow() {
+  const [tab,setTab]=useState("dashboard"); const [role,setRole]=useState("admin");
+  const [notifOpen,setNotifOpen]=useState(false); const [posts,setPosts]=useState(INITIAL_POSTS);
+  const [militants,setMilitants]=useState(INITIAL_MILITANTS);
+
+  const navItems=[
+    {id:"dashboard",label:"Dashboard",icon:LayoutDashboard},
+    {id:"mural",label:"Mural",icon:Newspaper},
+    {id:"mapa",label:"Mapa RJ",icon:Map},
+    {id:"militantes",label:"Militantes",icon:Users},
+    {id:"zeladoria",label:"Zeladoria",icon:Wrench},
+    ...(role==="admin"?[{id:"ranking",label:"Ranking",icon:Trophy}]:[]),
+  ];
+  const tabTitles={ dashboard:role==="admin"?"Visão Executiva":"Operações de Campo", mural:role==="admin"?"Mural do Político":"Central de Comunicados", mapa:"Inteligência Territorial", militantes:"Gestão de Militância", zeladoria:"Módulo de Zeladoria", ranking:"Ranking de Performance" };
+  const unread=posts.filter(p=>!p.readBy.includes(role==="admin"?"Dep. Carlos Vasconcelos":"Ricardo Mendes")).length;
+
+  return (
+    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#060c18 0%,#090f1e 55%,#060d1a 100%)", fontFamily:"'Sora','Inter',sans-serif", color:"#e2e8f0" }}>
+      <style>{`
+
+        *{box-sizing:border-box}
+        select option{background:#0d1525;color:#e2e8f0}
+        ::-webkit-scrollbar{width:3px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:rgba(37,99,235,0.2);border-radius:99px}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes urgencyPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}50%{box-shadow:0 0 16px 2px rgba(239,68,68,0.08)}}
+        @keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(300%)}}
+      `}</style>
+      <div style={{ position:"fixed", top:-180, left:-80, width:480, height:480, borderRadius:"50%", background:"radial-gradient(circle,rgba(37,99,235,0.04),transparent 70%)", pointerEvents:"none" }}/>
+      <div style={{ position:"fixed", bottom:-180, right:-80, width:380, height:380, borderRadius:"50%", background:"radial-gradient(circle,rgba(8,145,178,0.03),transparent 70%)", pointerEvents:"none" }}/>
+
+      <header style={{ position:"sticky", top:0, zIndex:50, background:"rgba(6,12,24,0.93)", backdropFilter:"blur(22px)", borderBottom:"1px solid rgba(255,255,255,0.05)", padding:"0 20px", height:56, display:"flex", alignItems:"center", gap:13 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9, marginRight:7, flexShrink:0 }}>
+          <div style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#1d4ed8,#0891b2)", display:"flex", alignItems:"center", justifyContent:"center" }}><Activity size={14} color="#fff"/></div>
+          <div>
+            <div style={{ fontWeight:800, fontSize:13, letterSpacing:"-0.03em", lineHeight:1, background:"linear-gradient(90deg,#93c5fd,#67e8f9)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Polly Flow</div>
+            <div style={{ fontSize:8, color:"#334155", fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase" }}>Inteligência Política</div>
+          </div>
+        </div>
+        <nav style={{ display:"flex", gap:1, flex:1, overflowX:"auto" }}>
+          {navItems.map(item=>(
+            <button key={item.id} onClick={()=>setTab(item.id)}
+              style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 10px", borderRadius:7, background:tab===item.id?"rgba(37,99,235,0.11)":"transparent", border:tab===item.id?"1px solid rgba(37,99,235,0.2)":"1px solid transparent", color:tab===item.id?"#60a5fa":"#475569", fontSize:11, fontWeight:tab===item.id?700:500, cursor:"pointer", transition:"all 0.15s", fontFamily:"'Sora',sans-serif", whiteSpace:"nowrap", position:"relative" }}>
+              <item.icon size={11}/>
+              <span>{item.label}</span>
+              {item.id==="mural"&&unread>0&&<div style={{ position:"absolute", top:3, right:3, width:5, height:5, borderRadius:"50%", background:"#ef4444", boxShadow:"0 0 4px #ef4444" }}/>}
+            </button>
+          ))}
+        </nav>
+        <div style={{ display:"flex", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:8, padding:2, gap:2, flexShrink:0 }}>
+          {[{id:"admin",label:"Admin",icon:Shield},{id:"operator",label:"Operador",icon:Radio}].map(r=>(
+            <button key={r.id} onClick={()=>{setRole(r.id);if(r.id==="operator"&&tab==="ranking")setTab("dashboard");}}
+              style={{ padding:"4px 10px", borderRadius:7, border:"none", cursor:"pointer", background:role===r.id?"linear-gradient(135deg,#1d4ed8,#0891b2)":"transparent", color:role===r.id?"#fff":"#475569", fontSize:10, fontWeight:700, transition:"all 0.2s", fontFamily:"'Sora',sans-serif", display:"flex", alignItems:"center", gap:4 }}>
+              <r.icon size={9}/> {r.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <button onClick={()=>setNotifOpen(!notifOpen)} style={{ position:"relative", background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:7, padding:"6px", cursor:"pointer", color:"#475569", display:"flex" }}>
+            <Bell size={13}/>
+            <div style={{ position:"absolute", top:3, right:3, width:5, height:5, borderRadius:"50%", background:"#ef4444", animation:"pulse 2s infinite", border:"1px solid #06101e" }}/>
+          </button>
+          {notifOpen&&(
+            <div style={{ position:"absolute", right:0, top:"calc(100% + 7px)", background:"rgba(9,15,30,0.98)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:12, padding:13, minWidth:245, backdropFilter:"blur(22px)", zIndex:100 }}>
+              <div style={{ fontWeight:700, color:"#e2e8f0", fontSize:11, marginBottom:9, letterSpacing:"0.04em" }}>Notificações</div>
+              {[{text:"Aniversariantes: Fernanda e Helena",time:"agora"},{text:"Nova demanda de alta prioridade no Catete",time:"5min"},{text:"Igor Nascimento assumiu liderança do ranking",time:"1h"}].map((n,i)=>(
+                <div key={i} style={{ padding:"6px 0", borderBottom:i<2?"1px solid rgba(255,255,255,0.04)":"none" }}>
+                  <div style={{ fontSize:11, color:"#94a3b8" }}>{n.text}</div>
+                  <div style={{ fontSize:9, color:"#334155", marginTop:2 }}>há {n.time}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      <main style={{ maxWidth:1080, margin:"0 auto", padding:"20px 16px 84px", animation:"fadeUp 0.32s ease both" }}>
+        <div style={{ marginBottom:16 }}>
+          <div style={{ fontWeight:800, fontSize:19, color:"#f1f5f9", letterSpacing:"-0.025em" }}>{tabTitles[tab]}</div>
+          <div style={{ color:"#334155", fontSize:10, marginTop:2, letterSpacing:"0.03em", textTransform:"uppercase", fontWeight:600 }}>
+            {role==="admin"?"Visão Executiva":"Operações de Campo"} · Atualizado agora
+          </div>
+        </div>
+        {tab!=="mural"&&<UrgencyBanner posts={posts} onNavigate={setTab}/>}
+        {tab==="dashboard"  &&<DashboardView role={role} militants={militants}/>}
+        {tab==="mural"      &&<MuralView role={role} posts={posts} setPosts={setPosts}/>}
+        {tab==="mapa"       &&<MapView militants={militants}/>}
+        {tab==="militantes" &&<MilitantsView role={role} militants={militants} setMilitants={setMilitants}/>}
+        {tab==="zeladoria"  &&<ZeladoriaView/>}
+        {tab==="ranking"&&role==="admin"&&<RankingView militants={militants}/>}
+      </main>
+
+      <nav style={{ position:"fixed", bottom:0, left:0, right:0, background:"rgba(6,12,24,0.97)", backdropFilter:"blur(18px)", borderTop:"1px solid rgba(255,255,255,0.04)", display:"flex", justifyContent:"space-around", padding:"7px 0 10px", zIndex:40 }}>
+        {navItems.map(item=>(
+          <button key={item.id} onClick={()=>setTab(item.id)}
+            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, background:"none", border:"none", cursor:"pointer", color:tab===item.id?"#60a5fa":"#334155", padding:"3px 9px", borderRadius:6, transition:"color 0.15s", fontFamily:"'Sora',sans-serif", position:"relative" }}>
+            <item.icon size={16}/>
+            <span style={{ fontSize:8, fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase" }}>{item.label}</span>
+            {item.id==="mural"&&unread>0&&<div style={{ position:"absolute", top:1, right:7, width:4, height:4, borderRadius:"50%", background:"#ef4444" }}/>}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+    // ── Mount ─────────────────────────────────────────────────────────────────
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(PollyFlow));
+  </script>
+</body>
+</html>
